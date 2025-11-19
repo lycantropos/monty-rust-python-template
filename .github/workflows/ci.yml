@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup Rust'
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -35,9 +35,9 @@ jobs:
               fi
             done
       - name: 'Setup Python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.{{ range(min_version_of['python'].split('.')[1]|int }}'
+          python-version: '3.{{ [ min_version_of['python'].split('.')[1] | int, 11 ] | max }}'
       - name: 'Check Python metadata'
         run: |
           PROJECT_DESCRIPTION=$(python -c 'import json, pathlib, tomllib; print(json.dumps(tomllib.loads(pathlib.Path("pyproject.toml").read_text())))' | jq --raw-output '.project.description')
@@ -64,7 +64,7 @@ jobs:
           {
             os: 'macos-latest',
             python_architecture: 'x64',
-            rust_target: 'x86_64-apple-darwin'
+            rust_target: 'aarch64-apple-darwin'
           },
           {
             os: 'ubuntu-latest',
@@ -85,17 +85,15 @@ jobs:
         include:
 {% for minor in range(min_version_of['pypy'].split('.')[1]|int, (max_version_of['pypy'].split('.')[1])|int + 1) %}
           - python_version: 'pypy-{{ min_version_of['pypy'].split('.')[0] }}.{{ minor }}'
-            platform: { os: 'macos-latest', python_architecture: 'x64' }
-          - python_version: 'pypy-{{ min_version_of['pypy'].split('.')[0] }}.{{ minor }}'
             platform: { os: 'ubuntu-latest', python_architecture: 'x64' }
           - python_version: 'pypy-{{ min_version_of['pypy'].split('.')[0] }}.{{ minor }}'
             platform: { os: 'windows-latest', python_architecture: 'x64' }
 {% endfor %}
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup Python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ '{{ matrix.python_version }}' }}
           architecture: ${{ '{{ matrix.platform.python_architecture }}' }}
@@ -146,7 +144,7 @@ jobs:
           rustup run nightly-${{ '{{ matrix.platform.rust_target }}' }} cargo llvm-cov report --cobertura --branch --output-path coverage_rust.xml
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
       - name: 'Upload PyPy coverage'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: false
           files: ./coverage_python.xml
@@ -154,7 +152,7 @@ jobs:
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
         continue-on-error: true
       - name: 'Upload СPython coverage'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: false
           files: ./coverage_python.xml,./coverage_rust.xml
@@ -178,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup Rust'
         uses: dtolnay/rust-toolchain@stable
       - name: 'Upload'
@@ -192,9 +190,9 @@ jobs:
     needs: pre-deploy
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup Python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.{{ range(min_version_of['python'].split('.')[1]|int }}'
       - name: 'Install packaging tools'
@@ -202,7 +200,7 @@ jobs:
       - name: 'Build sdist'
         run: python -m build --sdist
       - name: 'Upload sdist'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-sdist
           path: dist
@@ -229,13 +227,6 @@ jobs:
             python_architecture: 'x64',
             rust_target: 'aarch64-apple-darwin',
             tag: 'macosx_universal2'
-          },
-          {
-            architecture: 'x86_64',
-            os: 'macos-latest',
-            python_architecture: 'x64',
-            rust_target: 'x86_64-apple-darwin',
-            tag: 'macosx_x86_64'
           },
           {
             architecture: 'aarch64',
@@ -303,7 +294,7 @@ jobs:
         ]
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup Rust'
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -315,7 +306,7 @@ jobs:
           platforms: all
         if: ${{ '{{ runner.os == \'Linux\' }}' }}
       - name: 'Build wheels'
-        uses: pypa/cibuildwheel@v2.21.3
+        uses: pypa/cibuildwheel@v3.3
         env:
           CIBW_ARCHS: ${{ '{{ matrix.platform.architecture }}' }}
           CIBW_BEFORE_ALL_LINUX: |
@@ -330,7 +321,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
       - name: 'Upload wheels'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-wheels-${{ '{{ matrix.python_tag }}' }}-${{ '{{ matrix.platform.tag }}' }}
           path: wheelhouse/*.whl
@@ -371,12 +362,12 @@ jobs:
 {% endfor %}
     steps:
       - name: 'Setup Python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ '{{ matrix.python_version }}' }}
           architecture: ${{ '{{ matrix.platform.python_architecture }}' }}
       - name: 'Download distributions'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           merge-multiple: true
           path: dist
@@ -392,16 +383,27 @@ jobs:
     name: 'Deploy to PyPI'
     environment: release
     needs: test-distributions
+    permissions:
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: 'Download distributions'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           merge-multiple: true
           path: dist
           pattern: dist-*
-      - name: 'Upload'
-        uses: pypa/gh-action-pypi-publish@v1.11.0
+      - name: 'Upload to Test PyPI'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          password: ${{ '{{ secrets.TEST_PYPI_API_TOKEN }}' }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: ${{ '{{ github.actor == \'dependabot[ bot ]\' }}' }}
+        continue-on-error: true
+      - name: 'Upload to PyPI'
+        if: github.actor != 'dependabot[bot]'
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
           password: ${{ '{{ secrets.PYPI_API_TOKEN }}' }}
