@@ -1,8 +1,5 @@
-use pyo3::prelude::{pymodule, PyModule, PyResult, Python};
+#[cfg(feature = "python_binding")]
+mod python_binding;
 
-#[pymodule]
-fn _{{project}}(_py: Python, module: &PyModule) -> PyResult<()> {
-    module.setattr("__version__", env!("CARGO_PKG_VERSION"))?;
-    module.setattr("__doc__", env!("CARGO_PKG_DESCRIPTION"))?;
-    Ok(())
-}
+#[doc = include_str!("../README.md")]
+type _DoctestReadme = ();

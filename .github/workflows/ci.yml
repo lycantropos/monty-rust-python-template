@@ -9,11 +9,55 @@ on:
     branches:
       - 'master'
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Setup Rust'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+      - name: 'Check Rust metadata'
+        run: >
+          cargo metadata --format-version=1 --no-deps
+          | jq --compact-output --raw-output '.packages[]'
+          | while read -r package; do
+              if [[ $(echo "$package" | jq --raw-output ".repository") != '${{ '{{ github.server_url }}' }}/${{ '{{ github.repository }}' }}' ]]; then
+                echo "Package $(echo "$package" | jq '.name') has invalid repository URL $(echo "$package" | jq '.repository')";
+                exit 1;
+              fi
+            done
+      - name: 'Setup Python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.{{ range(min_version_of['python'].split('.')[1]|int }}'
+      - name: 'Check Python metadata'
+        run: |
+          PROJECT_DESCRIPTION=$(python -c 'import json, pathlib, tomllib; print(json.dumps(tomllib.loads(pathlib.Path("pyproject.toml").read_text())))' | jq --raw-output '.project.description')
+          MODULE_DOCSTRING=$(python -c "import ${REPOSITORY_NAME//-/_} as module; assert module.__doc__ is not None; print(module.__doc__)")
+          if [[ $PROJECT_DESCRIPTION != "$MODULE_DOCSTRING" ]]; then
+            echo "Project description should be equal to module docstring, but found \"$PROJECT_DESCRIPTION\" != \"$MODULE_DOCSTRING\".";
+            exit 1;
+          fi
+        env:
+          REPOSITORY_NAME: ${{ '{{ github.event.repository.name }}' }}
+      - name: 'Install pre-commit'
+        run: python -m pip install -U pre-commit
+      - name: 'Run pre-commit'
+        run: pre-commit run --all-files
+
   test:
-    name: Test
+    name: 'Test'
     runs-on: ${{ '{{ matrix.platform.os }}' }}
     strategy:
+      fail-fast: false
       matrix:
         python_version: [ '3.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'3.') }}' ]
         platform: [
@@ -49,83 +93,72 @@ jobs:
 {% endfor %}
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v3
-        with:
-          submodules: true
+        uses: actions/checkout@v4
       - name: 'Setup Python'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ '{{ matrix.python_version }}' }}
           architecture: ${{ '{{ matrix.platform.python_architecture }}' }}
-      - name: 'Setup Rust'
-        uses: dtolnay/rust-toolchain@nightly
+      - name: 'Setup nightly Rust'
+        uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
-          target: ${{ '{{ matrix.platform.rust_target }}' }}
+          toolchain: nightly-${{ matrix.platform.rust_target }}
+          components: llvm-tools
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
-      - name: 'Check Rust metadata'
-        run: >
-          [[ $(cargo metadata --format-version=1 --no-deps | jq '.packages[0].repository')
-          == '"${{ '{{ github.server_url }}' }}/${{ '{{ github.repository }}' }}"' ]]
-        shell: bash
+      - name: 'Setup stable Rust'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable-${{ matrix.platform.rust_target }}
+          components: llvm-tools,rustfmt
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
-      - name: 'Run Rust linter'
-        run: cargo fmt --check
+      - name: 'Install Rust coverage dependencies'
+        uses: taiki-e/install-action@cargo-llvm-cov
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
       - name: 'Run Rust doctests'
-        run: cargo test --doc --target=${{ '{{ matrix.platform.rust_target }}' }}
+        run: |
+          eval "$(rustup run nightly-${{ matrix.platform.rust_target }} cargo llvm-cov show-env --export-prefix --doctests)"
+          rustup run nightly-${{ matrix.platform.rust_target }} cargo test --doc
         env:
-          CARGO_INCREMENTAL: 0
-          RUSTDOCFLAGS: >
-            -Zprofile -Ccodegen-units=1 -Copt-level=0 -Coverflow-checks=off
-            -Zpanic_abort_tests -Cpanic=abort
-          RUSTFLAGS: >
-            -Zprofile -Ccodegen-units=1 -Copt-level=0 -Coverflow-checks=off
-            -Zpanic_abort_tests -Cpanic=abort
+          CARGO_INCREMENTAL: 1
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
-      - name: 'Install Python packaging tools'
-        run: python -m pip install -U pip setuptools
       - name: 'Install in editable mode'
-        run: python -m pip -v install -e .
-        env:
-          CARGO_INCREMENTAL: 0
-          RUSTFLAGS: >
-            -Zprofile -Ccodegen-units=1 -Copt-level=0 -Coverflow-checks=off
-            -Zpanic_abort_tests -Cpanic=abort
-      - name: 'Install MyPy'
-        run: python -m pip install -U mypy
-      - name: 'Run MyPy'
-        run: python -m mypy ${{ '{{ github.event.repository.name }}' }}
+        run: |
+          ${{ '{{ !startsWith(matrix.python_version, \'pypy\') && \'eval "$(cargo llvm-cov show-env --export-prefix)"\' || \'\' }}' }}
+          ${{ '{{ !startsWith(matrix.python_version, \'pypy\') && \'CARGO_INCREMENTAL=1 CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR\' || \'\' }}' }} python -m pip -v install -e '.[tests]'
       - name: 'Install Python coverage dependencies'
         run: python -m pip install --upgrade coverage[toml]
       - name: 'Run Python doctests'
-        run: >
+        run: |
+          ${{ '{{ !startsWith(matrix.python_version, \'pypy\') && \'eval "$(cargo llvm-cov show-env --export-prefix)"\' || \'\' }}' }}
           coverage run -m doctest README.md
-          && coverage run --append -m pytest --doctest-modules --ignore=tests
+          coverage run --append -m pytest --doctest-modules --ignore=tests
       - name: 'Run tests'
-        run: coverage run --append -m pytest
+        run: |
+          ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }} && \'eval "$(cargo llvm-cov show-env --export-prefix)"\' || \'\' }}' }}
+          coverage run --append -m pytest
+        env:
+          RUST_BACKTRACE: full
       - name: 'Collect Python coverage'
         run: coverage xml -o coverage_python.xml
-      - name: 'Install Rust coverage dependencies'
-        run: cargo install grcov
-        if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
       - name: 'Collect Rust coverage'
-        run: >
-          grcov target -s . -t cobertura --llvm --branch --ignore-not-existing
-          --ignore "/*" -o coverage_rust.xml
+        run: |
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          rustup run nightly-${{ '{{ matrix.platform.rust_target }}' }} cargo llvm-cov report --cobertura --branch --output-path coverage_rust.xml
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
       - name: 'Upload PyPy coverage'
-        uses: codecov/codecov-action@v3.1.4
+        uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false
           files: ./coverage_python.xml
-        if: ${{ '{{ startsWith(matrix.python_version, \'pypy\') }}' }}
+          token: ${{ '{{ secrets.CODECOV_TOKEN }}' }}
+        if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
         continue-on-error: true
       - name: 'Upload СPython coverage'
-        uses: codecov/codecov-action@v3.1.4
+        uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false
           files: ./coverage_python.xml,./coverage_rust.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
         continue-on-error: true
 
@@ -145,9 +178,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: 'Setup Rust'
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
       - name: 'Upload'
         run: cargo publish --no-verify
         env:
@@ -159,19 +192,19 @@ jobs:
     needs: pre-deploy
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v3
-        with:
-          submodules: true
+        uses: actions/checkout@v4
       - name: 'Setup Python'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.{{ range(min_version_of['python'].split('.')[1]|int }}'
       - name: 'Install packaging tools'
-        run: python -m pip install -U build pip setuptools
+        run: python -m pip install -U build
       - name: 'Build sdist'
         run: python -m build --sdist
       - name: 'Upload sdist'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-sdist
           path: dist
 
   build-wheels:
@@ -179,10 +212,11 @@ jobs:
     runs-on: ${{ '{{ matrix.platform.os }}' }}
     needs: pre-deploy
     strategy:
+      fail-fast: false
       matrix:
         python_tag: [ 'cp3{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'cp3') }}' ]
         platform: [
-{% if min_version_of['python'].split('.')[1]|int > 7 %}          {
+          {
             architecture: 'arm64',
             os: 'macos-latest',
             python_architecture: 'x64',
@@ -196,7 +230,7 @@ jobs:
             rust_target: 'aarch64-apple-darwin',
             tag: 'macosx_universal2'
           },
-{% endif %}          {
+          {
             architecture: 'x86_64',
             os: 'macos-latest',
             python_architecture: 'x64',
@@ -267,46 +301,21 @@ jobs:
             tag: 'win32'
           },
         ]
-{% if min_version_of['python'].split('.')[1]|int <= 7 and max_version_of['python'].split('.')[1]|int > 7 %}
-        include:
-{% for minor in range(8, max_version_of['python'].split('.')[1]|int + 1) %}          - python_tag: 'cp3{{ minor }}'
-            platform: {
-              architecture: 'arm64',
-              os: 'macos-latest',
-              python_architecture: 'x64',
-              rust_target: 'aarch64-apple-darwin',
-              tag: 'macosx_arm64'
-            }
-          - python_tag: 'cp3{{ minor }}'
-            platform: {
-              architecture: 'universal2',
-              os: 'macos-latest',
-              python_architecture: 'x64',
-              rust_target: 'aarch64-apple-darwin',
-              tag: 'macosx_universal2'
-            }
-{% endfor %}{% endif %}
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v3
-        with:
-          submodules: true
-      - name: 'Setup Python'
-        uses: actions/setup-python@v4
-        with:
-          architecture: ${{ '{{ matrix.platform.python_architecture }}' }}
+        uses: actions/checkout@v4
       - name: 'Setup Rust'
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           target: ${{ '{{ matrix.platform.rust_target }}' }}
         if: ${{ '{{ runner.os != \'Linux\' }}' }}
       - name: 'Setup QEMU'
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: all
         if: ${{ '{{ runner.os == \'Linux\' }}' }}
       - name: 'Build wheels'
-        uses: pypa/cibuildwheel@v2.16.2
+        uses: pypa/cibuildwheel@v2.21.3
         env:
           CIBW_ARCHS: ${{ '{{ matrix.platform.architecture }}' }}
           CIBW_BEFORE_ALL_LINUX: |
@@ -321,13 +330,13 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
       - name: 'Upload wheels'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-wheels-${{ '{{ matrix.python_tag }}' }}-${{ '{{ matrix.platform.tag }}' }}
           path: wheelhouse/*.whl
 
   test-distributions:
-    name: Test distributions
+    name: 'Test distributions'
     runs-on: ${{ '{{ matrix.platform.os }}' }}
     needs: [ 'build-sdist', 'build-wheels' ]
     strategy:
@@ -362,17 +371,22 @@ jobs:
 {% endfor %}
     steps:
       - name: 'Setup Python'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ '{{ matrix.python_version }}' }}
           architecture: ${{ '{{ matrix.platform.python_architecture }}' }}
       - name: 'Download distributions'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist
+          merge-multiple: true
           path: dist
+          pattern: dist-*
       - name: 'Install from distributions'
-        run: python -m pip install --find-links=dist --no-deps --no-index ${{ '{{ github.event.repository.name }}' }}
+        run: >
+          python -m pip install --find-links=dist --no-deps
+          "${REPOSITORY_NAME//-/_}"
+        env:
+          REPOSITORY_NAME: ${{ '{{ github.event.repository.name }}' }}
 
   deploy-pypi:
     name: 'Deploy to PyPI'
@@ -381,12 +395,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Download distributions'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist
+          merge-multiple: true
           path: dist
+          pattern: dist-*
       - name: 'Upload'
-        uses: pypa/gh-action-pypi-publish@v1.8.10
+        uses: pypa/gh-action-pypi-publish@v1.11.0
         with:
-          packages_dir: dist
+          packages-dir: dist
           password: ${{ '{{ secrets.PYPI_API_TOKEN }}' }}
