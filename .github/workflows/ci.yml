@@ -194,7 +194,7 @@ jobs:
       - name: 'Setup Python'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.{{ range(min_version_of['python'].split('.')[1]|int }}'
+          python-version: '3.{{ min_version_of['python'].split('.')[1] | int }}'
       - name: 'Install packaging tools'
         run: python -m pip install -U build
       - name: 'Build sdist'
