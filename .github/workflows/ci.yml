@@ -106,7 +106,7 @@ jobs:
       - name: 'Setup stable Rust'
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable-${{ matrix.platform.rust_target }}
+          toolchain: stable-${{ '{{ matrix.platform.rust_target }}' }}
           components: llvm-tools,rustfmt
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
       - name: 'Install Rust coverage dependencies'
@@ -114,8 +114,8 @@ jobs:
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
       - name: 'Run Rust doctests'
         run: |
-          eval "$(rustup run nightly-${{ matrix.platform.rust_target }} cargo llvm-cov show-env --export-prefix --doctests)"
-          rustup run nightly-${{ matrix.platform.rust_target }} cargo test --doc
+          eval "$(rustup run nightly-${{ '{{ matrix.platform.rust_target }}' }} cargo llvm-cov show-env --export-prefix --doctests)"
+          rustup run nightly-${{ '{{ matrix.platform.rust_target }}' }} cargo test --doc
         env:
           CARGO_INCREMENTAL: 1
         if: ${{ '{{ !startsWith(matrix.python_version, \'pypy\') }}' }}
