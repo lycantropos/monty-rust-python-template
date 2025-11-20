@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python_version: [ '{{ min_version_of['python'].split('.')[0] }}.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'' + min_version_of['python'].split('.')[0]) }}' ]
+        python_version: [ '{{ min_version_of['python'].split('.')[0] }}.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'' + min_version_of['python'].split('.')[0] + '.') }}' ]
         platform: [
           {
             os: 'macos-latest',
@@ -352,7 +352,7 @@ jobs:
     needs: [ 'build-sdist', 'build-wheels' ]
     strategy:
       matrix:
-        python_version: [ '{{ min_version_of['python'].split('.')[0] }}.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'' + min_version_of['python'].split('.')[0]) }}' ]
+        python_version: [ '{{ min_version_of['python'].split('.')[0] }}.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'' + min_version_of['python'].split('.')[0] + '.') }}' ]
         platform: [
           {
             os: 'macos-latest',
