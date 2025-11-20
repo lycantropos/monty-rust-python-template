@@ -37,7 +37,7 @@ jobs:
       - name: 'Setup Python'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '{{ min_version_of['python'].split('.')[0] }}.{{ min_version_of['python'].split('.')[1] }}'
       - name: 'Install pre-commit'
         run: python -m pip install -U pre-commit
       - name: 'Run pre-commit'
@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python_version: [ '3.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'3.') }}' ]
+        python_version: [ '{{ min_version_of['python'].split('.')[0] }}.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'' + min_version_of['python'].split('.')[0]) }}' ]
         platform: [
           {
             os: 'macos-latest',
@@ -97,6 +97,11 @@ jobs:
             rust_target: 'i686-pc-windows-msvc'
           },
         ]
+{% if min_version_of['python'].split('.')[1]|int < 11 %}        exclude:
+{% for minor in range(min_version_of['python'].split('.')[1] | int, [11, (max_version_of['python'].split('.')[1]) | int + 1] | min) %}
+          - python_version: '{{ min_version_of['python'].split('.')[0] }}.{{ minor }}'
+            platform: { os: 'macos-latest', python_architecture: 'x64' }
+{% endfor %}{% endif %}
         include:
 {% for minor in range(min_version_of['pypy'].split('.')[1]|int, (max_version_of['pypy'].split('.')[1])|int + 1) %}
           - python_version: 'pypy-{{ min_version_of['pypy'].split('.')[0] }}.{{ minor }}'
@@ -209,7 +214,7 @@ jobs:
       - name: 'Setup Python'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.{{ min_version_of['python'].split('.')[1] | int }}'
+          python-version: '{{ min_version_of['python'].split('.')[0] }}.{{ min_version_of['python'].split('.')[1] }}'
       - name: 'Install packaging tools'
         run: python -m pip install -U build
       - name: 'Build sdist'
@@ -347,7 +352,7 @@ jobs:
     needs: [ 'build-sdist', 'build-wheels' ]
     strategy:
       matrix:
-        python_version: [ '3.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'3.') }}' ]
+        python_version: [ '{{ min_version_of['python'].split('.')[0] }}.{{ range(min_version_of['python'].split('.')[1]|int, (max_version_of['python'].split('.')[1])|int + 1) | join('\', \'' + min_version_of['python'].split('.')[0]) }}' ]
         platform: [
           {
             os: 'macos-latest',
