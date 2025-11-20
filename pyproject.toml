@@ -56,6 +56,7 @@ setup_hooks = []
 pre_commit_hooks = []
 post_commit_hooks = []
 files = [
+    { "filename" = "Cargo.toml" },
     { "filename" = "docker-compose.cpython.yml" },
     { "filename" = "docker-compose.pypy.yml" },
     { "filename" = "{{project}}/__init__.py" },
