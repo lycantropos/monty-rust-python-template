@@ -39,7 +39,7 @@ cd {{project}}
 Install
 
 ```bash
-python setup.py install
+python -m pip install -e '.'
 ```
 
 Development
@@ -75,19 +75,23 @@ This will set version to `major.minor.patch`.
 
 ### Running tests
 
-Install dependencies
+#### Plain
+
+Install with dependencies
 
 ```bash
-python -m pip install -r requirements-tests.txt
+python -m pip install -e '.[tests]'
 ```
 
-Plain
+Run
 
 ```bash
 pytest
 ```
 
-Inside `Docker` container:
+#### `Docker` container
+
+Run
 
 - with `CPython`
   ```bash
@@ -98,7 +102,9 @@ Inside `Docker` container:
   docker-compose --file docker-compose.pypy.yml up
   ```
 
-`Bash` script:
+#### `Bash` script
+
+Run
 
 - with `CPython`
   ```bash
@@ -114,7 +120,9 @@ Inside `Docker` container:
   ./run-tests.sh pypy
   ```
 
-`PowerShell` script:
+#### `PowerShell` script
+
+Run
 
 - with `CPython`
   ```powershell
