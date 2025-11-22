@@ -11,6 +11,8 @@ or any later version (`python{{min_version_of['python'].split('.')[0]}}.{{min_ve
 
 ## Installation
 
+### Prerequisites
+
 Install the latest `pip` & `setuptools` packages versions
 
 ```bash
@@ -44,7 +46,7 @@ python -m pip install -e '.'
 
 ### Bumping version
 
-#### Preparation
+#### Prerequisites
 
 Install [bump-my-version](https://github.com/callowayproject/bump-my-version#installation).
 
