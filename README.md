@@ -1,17 +1,15 @@
-{{project}}
-{{"=" * project|length}}
+# {{project}}
 
-[![](https://github.com/{{github_login}}/{{project}}/workflows/CI/badge.svg)](https://github.com/{{github_login}}/{{project}}/actions/workflows/ci.yml "Github Actions")
-[![](https://codecov.io/gh/{{github_login}}/{{project}}/branch/master/graph/badge.svg)](https://codecov.io/gh/{{github_login}}/{{project}} "Codecov")
-[![](https://img.shields.io/github/license/{{github_login}}/{{project}}.svg)](https://github.com/{{github_login}}/{{project}}/blob/master/LICENSE "License")
-[![](https://badge.fury.io/py/{{project.replace("_", "-")}}.svg)](https://badge.fury.io/py/{{project.replace("_", "-")}} "PyPI")
-[![](https://img.shields.io/crates/v/{{project}}.svg)](https://crates.io/crates/{{project}} "crates.io")
+[![Github Actions](https://github.com/{{github_login}}/{{project}}/workflows/CI/badge.svg)](https://github.com/{{github_login}}/{{project}}/actions/workflows/ci.yml "Github Actions")
+[![Codecov](https://codecov.io/gh/{{github_login}}/{{project}}/branch/master/graph/badge.svg)](https://codecov.io/gh/{{github_login}}/{{project}} "Codecov")
+[![License](https://img.shields.io/github/license/{{github_login}}/{{project}}.svg)](https://github.com/{{github_login}}/{{project}}/blob/master/LICENSE "License")
+[![PyPI](https://badge.fury.io/py/{{project.replace("_", "-")}}.svg)](https://badge.fury.io/py/{{project.replace("_", "-")}} "PyPI")
+[![crates.io](https://img.shields.io/crates/v/{{project}}.svg)](https://crates.io/crates/{{project}} "crates.io")
 
 In what follows `python` is an alias for `python{{min_version_of['python']}}` or `pypy{{min_version_of['python']}}`
 or any later version (`python{{min_version_of['python'].split('.')[0]}}.{{min_version_of['python'].split('.')[1]|int + 1}}`, `pypy{{min_version_of['python'].split('.')[0]}}.{{min_version_of['python'].split('.')[1]|int + 1}}` and so on).
 
-Installation
-------------
+## Installation
 
 Install the latest `pip` & `setuptools` packages versions
 
@@ -42,8 +40,7 @@ Install
 python -m pip install -e '.'
 ```
 
-Development
------------
+## Development
 
 ### Bumping version
 
