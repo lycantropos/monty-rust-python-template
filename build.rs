@@ -1,3 +1,6 @@
 fn main() {
-    pyo3_build_config::add_extension_module_link_args();
+    #[cfg(feature = "python_binding")]
+    {
+        pyo3_build_config::add_extension_module_link_args();
+    }
 }
